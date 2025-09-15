@@ -1,0 +1,215 @@
+Develop a multi-tenant, enterprise-grade Student Consulting CRM SaaS with nested sub-account functionalities (like GoHighLevel) and full Agentcis CRM features for student consulting firms. The system must include real-time university and program databases, integrated with public APIs and web scraping. Ensure data encryption and complete isolation at all levels, including sub-accounts, student portal, and internal resources. Development-ready deploy enterprise grade crm including architecture, database schema, APIs, modules, workflows, AI integration points, and UI/UX and rest of the things.
+
+1. Multi-Tenant Architecture with Sub-Accounts
+
+Tenant (Agency/Firm) Level:
+
+Own branding, pipelines, workflows, dashboards, student data.
+
+Manage multiple sub-accounts (branches, franchises, agents) that are fully isolated.
+
+Role-Based Access Control (RBAC) for tenant admins, sub-account admins, and agents.
+
+Sub-Account Level:
+
+Independent pipelines, tasks, student management, and reporting.
+
+Seamless UI switching between sub-accounts.
+
+Custom dashboards and branding.
+
+API endpoints for sub-account integrations.
+
+Data isolation between sub-accounts.
+
+Security:
+
+Encryption at rest (AES-256) and in transit (TLS 1.2+).
+
+Middleware or row-level security to enforce tenant and sub-account isolation.
+
+2. Core CRM Features (Agentcis-Like)
+
+Lead & Contact Management:
+
+Capture leads from web forms, social media, email, webinars, referrals.
+
+Multi-level assignment: Tenant → Sub-Account → Agent.
+
+AI-powered lead scoring and prioritization.
+
+Duplicate detection and merge.
+
+Engagement history tracking.
+
+Enquiry & Application Management:
+
+Capture enquiries, track lifecycle: New → In Progress → Submitted → Accepted → Rejected → Withdrawn.
+
+Document upload and AI validation.
+
+Program/university AI recommendation based on student profile.
+
+Sub-account-specific application pipelines.
+
+University & Program Management:
+
+Maintain database of universities and programs.
+
+Include tuition fees, intakes, deadlines, scholarships, admission requirements.
+
+Real-time updates via public APIs and web scraping.
+
+AI-powered program matching.
+
+Pipelines & Workflows:
+
+Customizable Kanban-style pipelines per tenant/sub-account.
+
+Automated task generation and reminders.
+
+AI insights on bottlenecks, conversion prediction, workload balancing.
+
+Agents & Consultants Management:
+
+Multi-level role hierarchy.
+
+Commission, incentives, and performance dashboards.
+
+AI-driven performance analytics.
+
+Location-based access control.
+
+Communication & Engagement:
+
+Email, SMS, and chat integrated.
+
+AI-assisted drafting, automated replies, engagement tracking.
+
+Student/lead chatbot.
+
+Calendar integration (Google/Outlook).
+
+Task & Activity Management:
+
+Tenant/sub-account task assignment.
+
+AI-based prioritization.
+
+Dashboards for agents, sub-accounts, and tenants.
+
+Document & File Management:
+
+Centralized storage per tenant/sub-account.
+
+Version control and secure sharing.
+
+AI-based parsing and validation.
+
+Student Portal:
+
+Personalized portal per student.
+
+Application tracking, document upload, messaging.
+
+AI program recommendations.
+
+Full encryption and strict access control.
+
+Billing & Payment Management:
+
+Multi-level billing: Tenant → Sub-Account → Agent.
+
+Invoice generation, payment tracking, multi-currency.
+
+Payment gateway integrations (Stripe, PayPal, Razorpay, VertoFX).
+
+Financial aid interpretation (DecidED API).
+
+Reporting & Analytics:
+
+Multi-level dashboards (Tenant, Sub-Account, Agent).
+
+AI-powered predictive analytics for leads, applications, revenue, and conversions.
+
+Customizable reports with export (PDF, Excel, CSV).
+
+3. University and Program Database Integration
+
+Public APIs:
+
+http://universities.hipolabs.com/ – university list worldwide.
+
+College Scorecard API – U.S. universities, costs, admissions.
+
+Lightcast API – tuition and fees.
+
+Web Scraping:
+
+Use BeautifulSoup (Python) or Puppeteer (Node.js) for program-specific details.
+
+Schedule scraping to update database periodically.
+
+Ensure compliance with site TOS.
+
+Database Schema:
+
+Universities: university_id, name, location, website, contact_info
+
+Programs: program_id, university_id, name, degree_type, duration, language, tuition_fee, scholarships, requirements, deadlines
+
+Fees History: fee_id, program_id, fee_type, amount, currency, effective_date
+
+Real-Time Update Mechanism:
+
+API polling, webhooks, scheduled scraping.
+
+Data validation for consistency.
+
+Encryption at rest and in transit.
+
+Isolation per tenant/sub-account.
+
+4. AI Integration
+
+Lead Scoring & Prioritization
+
+Program & University Recommendations
+
+Task Prioritization
+
+Sentiment Analysis on Communications
+
+Predictive Analytics for enrollment trends and revenue forecasting
+
+Chatbots for student and lead engagement
+
+Continuous learning from user feedback.
+
+5. Security & Compliance
+
+Encryption: AES-256 at rest, TLS 1.2+ in transit.
+
+Data isolation: Tenant-level, sub-account-level, and student-level.
+
+RBAC for all internal and student resources.
+
+GDPR, FERPA, HIPAA compliance.
+
+Full audit trails and logging of all actions.
+
+6. Technology Stack Recommendation
+
+Frontend: React.js / Next.js + TailwindCSS + TypeScript.
+
+Backend: Node.js / NestJS or Django REST Framework.
+
+Database: PostgreSQL with row-level security or schema-per-tenant + Redis caching.
+
+AI/ML: Python (OpenAI API).
+
+Cloud: AWS/GCP/Azure, Docker + Kubernetes, CI/CD.
+
+File Storage: AWS S3 with tenant/sub-account folder isolation.
+
+Notifications: Twilio (SMS), SendGrid/Mailgun (Email), WebSockets for real-time updates.
