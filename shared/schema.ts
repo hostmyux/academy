@@ -281,6 +281,81 @@ export const pipelines = pgTable("pipelines", {
   index("pipelines_type_idx").on(table.type),
 ]);
 
+export const tasks = pgTable("tasks", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid("tenant_id").references(() => tenants.id).notNull(),
+  subAccountId: uuid("sub_account_id").references(() => subAccounts.id),
+  title: varchar("title", { length: 500 }).notNull(),
+  description: text("description"),
+  type: varchar("type", { length: 50 }).notNull().default("general"), // 'lead', 'application', 'general'
+  priority: varchar("priority", { length: 20 }).default("medium"), // 'low', 'medium', 'high', 'urgent'
+  status: varchar("status", { length: 20 }).default("todo"), // 'todo', 'in_progress', 'completed', 'cancelled'
+  dueDate: timestamp("due_date"),
+  assignedToId: uuid("assigned_to_id").references(() => users.id),
+  assignedById: uuid("assigned_by_id").references(() => users.id),
+  leadId: uuid("lead_id").references(() => leads.id),
+  applicationId: uuid("application_id").references(() => applications.id),
+  pipelineStage: varchar("pipeline_stage", { length: 100 }),
+  estimatedHours: decimal("estimated_hours", { precision: 5, scale: 2 }),
+  actualHours: decimal("actual_hours", { precision: 5, scale: 2 }),
+  tags: jsonb("tags").$type<string[]>(),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+}, (table) => [
+  index("tasks_tenant_id_idx").on(table.tenantId),
+  index("tasks_sub_account_id_idx").on(table.subAccountId),
+  index("tasks_assigned_to_id_idx").on(table.assignedToId),
+  index("tasks_assigned_by_id_idx").on(table.assignedById),
+  index("tasks_lead_id_idx").on(table.leadId),
+  index("tasks_application_id_idx").on(table.applicationId),
+  index("tasks_status_idx").on(table.status),
+  index("tasks_priority_idx").on(table.priority),
+  index("tasks_due_date_idx").on(table.dueDate),
+]);
+
+// Audit and Security Tables
+export const auditLogs = pgTable("audit_logs", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  tenantId: uuid("tenant_id").references(() => tenants.id).notNull(),
+  subAccountId: uuid("sub_account_id").references(() => subAccounts.id),
+  action: varchar("action", { length: 100 }).notNull(), // 'CREATE', 'READ', 'UPDATE', 'DELETE'
+  resource: varchar("resource", { length: 100 }).notNull(), // 'users', 'leads', 'applications', etc.
+  resourceId: varchar("resource_id", { length: 255 }),
+  details: jsonb("details"),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  userAgent: text("user_agent"),
+  result: varchar("result", { length: 20 }).notNull().default("success"), // 'success', 'failure'
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("audit_logs_tenant_id_idx").on(table.tenantId),
+  index("audit_logs_user_id_idx").on(table.userId),
+  index("audit_logs_action_idx").on(table.action),
+  index("audit_logs_resource_idx").on(table.resource),
+  index("audit_logs_created_at_idx").on(table.createdAt),
+]);
+
+export const securityLogs = pgTable("security_logs", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  type: varchar("type", { length: 50 }).notNull(), // 'login_attempt', 'login_failure', 'unauthorized_access', 'suspicious_activity'
+  userId: uuid("user_id").references(() => users.id),
+  tenantId: uuid("tenant_id").references(() => tenants.id),
+  ipAddress: varchar("ip_address", { length: 45 }).notNull(),
+  userAgent: text("user_agent"),
+  details: jsonb("details").notNull(),
+  severity: varchar("severity", { length: 20 }).default("medium"), // 'low', 'medium', 'high', 'critical'
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("security_logs_type_idx").on(table.type),
+  index("security_logs_user_id_idx").on(table.userId),
+  index("security_logs_tenant_id_idx").on(table.tenantId),
+  index("security_logs_severity_idx").on(table.severity),
+  index("security_logs_created_at_idx").on(table.createdAt),
+]);
+
 // Relations
 export const tenantsRelations = relations(tenants, ({ many }) => ({
   subAccounts: many(subAccounts),
@@ -291,6 +366,7 @@ export const tenantsRelations = relations(tenants, ({ many }) => ({
   payments: many(payments),
   activities: many(activities),
   pipelines: many(pipelines),
+  tasks: many(tasks),
 }));
 
 export const subAccountsRelations = relations(subAccounts, ({ one, many }) => ({
@@ -305,6 +381,7 @@ export const subAccountsRelations = relations(subAccounts, ({ one, many }) => ({
   payments: many(payments),
   activities: many(activities),
   pipelines: many(pipelines),
+  tasks: many(tasks),
 }));
 
 export const usersRelations = relations(users, ({ one, many }) => ({
@@ -320,6 +397,12 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   assignedApplications: many(applications),
   uploadedDocuments: many(documents),
   activities: many(activities),
+  assignedTasks: many(tasks, {
+    relationName: "assigned_to_tasks"
+  }),
+  createdTasks: many(tasks, {
+    relationName: "assigned_by_tasks"
+  }),
 }));
 
 export const leadsRelations = relations(leads, ({ one, many }) => ({
@@ -339,6 +422,7 @@ export const leadsRelations = relations(leads, ({ one, many }) => ({
   documents: many(documents),
   payments: many(payments),
   activities: many(activities),
+  tasks: many(tasks),
 }));
 
 export const universitiesRelations = relations(universities, ({ many }) => ({
@@ -377,6 +461,7 @@ export const applicationsRelations = relations(applications, ({ one, many }) => 
   documents: many(documents),
   payments: many(payments),
   activities: many(activities),
+  tasks: many(tasks),
 }));
 
 export const documentsRelations = relations(documents, ({ one }) => ({
@@ -459,6 +544,35 @@ export const pipelinesRelations = relations(pipelines, ({ one }) => ({
   }),
 }));
 
+export const tasksRelations = relations(tasks, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [tasks.tenantId],
+    references: [tenants.id],
+  }),
+  subAccount: one(subAccounts, {
+    fields: [tasks.subAccountId],
+    references: [subAccounts.id],
+  }),
+  assignedTo: one(users, {
+    fields: [tasks.assignedToId],
+    references: [users.id],
+    relationName: "assigned_to_tasks"
+  }),
+  assignedBy: one(users, {
+    fields: [tasks.assignedById],
+    references: [users.id],
+    relationName: "assigned_by_tasks"
+  }),
+  lead: one(leads, {
+    fields: [tasks.leadId],
+    references: [leads.id],
+  }),
+  application: one(applications, {
+    fields: [tasks.applicationId],
+    references: [applications.id],
+  }),
+}));
+
 // Insert Schemas
 export const insertTenantSchema = createInsertSchema(tenants).omit({
   id: true,
@@ -525,6 +639,13 @@ export const insertPipelineSchema = createInsertSchema(pipelines).omit({
   updatedAt: true,
 });
 
+export const insertTaskSchema = createInsertSchema(tasks).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  completedAt: true,
+});
+
 // Types
 export type Tenant = typeof tenants.$inferSelect;
 export type InsertTenant = z.infer<typeof insertTenantSchema>;
@@ -558,3 +679,6 @@ export type InsertActivity = z.infer<typeof insertActivitySchema>;
 
 export type Pipeline = typeof pipelines.$inferSelect;
 export type InsertPipeline = z.infer<typeof insertPipelineSchema>;
+
+export type Task = typeof tasks.$inferSelect;
+export type InsertTask = z.infer<typeof insertTaskSchema>;

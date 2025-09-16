@@ -1,11 +1,33 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { TenantMiddleware } from "./middleware/tenant";
+import { SecurityMiddleware } from "./middleware/security";
+import dotenv from "dotenv";
+
+// Load environment variables from .env file
+dotenv.config();
 
 const app = express();
+
+// Apply security middleware first
+app.use(SecurityMiddleware.securityHeaders);
+app.use(SecurityMiddleware.rateLimit);
+
+// Body parsing middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Apply input validation and sanitization
+app.use(SecurityMiddleware.validateRequest);
+
+// Apply tenant context extraction
+app.use(TenantMiddleware.extractTenantContext);
+
+// Apply audit logging
+app.use(SecurityMiddleware.auditLog);
+
+// Logging middleware
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;

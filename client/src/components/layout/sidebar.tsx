@@ -15,6 +15,7 @@ import {
   CreditCard,
   BarChart2,
   Settings,
+  Building2,
   LogOut
 } from "lucide-react";
 
@@ -23,21 +24,32 @@ interface SidebarProps {
   onClose: () => void;
 }
 
-const navigation = [
-  { name: "Dashboard", href: "/", icon: BarChart3 },
-  { name: "Leads & Contacts", href: "/leads", icon: Users },
-  { name: "Applications", href: "/applications", icon: FileText },
-  { name: "Universities", href: "/universities", icon: School },
-  { name: "Pipeline", href: "/pipeline", icon: GitBranch },
-  { name: "Agents", href: "/agents", icon: Bus },
-  { name: "Billing", href: "/billing", icon: CreditCard },
-  { name: "Reports", href: "/reports", icon: BarChart2 },
-  { name: "Settings", href: "/settings", icon: Settings },
-];
+const getNavigation = (userRole: string) => {
+  const baseNavigation = [
+    { name: "Dashboard", href: "/", icon: BarChart3 },
+    { name: "Leads & Contacts", href: "/leads", icon: Users },
+    { name: "Applications", href: "/applications", icon: FileText },
+    { name: "Universities", href: "/universities", icon: School },
+    { name: "Pipeline", href: "/pipeline", icon: GitBranch },
+    { name: "Agents", href: "/agents", icon: Bus },
+    { name: "Billing", href: "/billing", icon: CreditCard },
+    { name: "Reports", href: "/reports", icon: BarChart2 },
+    { name: "Settings", href: "/settings", icon: Settings },
+  ];
+
+  // Add sub-accounts navigation for tenant admins
+  if (userRole === 'tenant_admin') {
+    baseNavigation.splice(6, 0, { name: "Sub-Accounts", href: "/sub-accounts", icon: Building2 });
+  }
+
+  return baseNavigation;
+};
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const [location] = useLocation();
   const { user, logoutMutation } = useAuth();
+
+  const navigation = getNavigation(user?.role || '');
 
   const handleLogout = () => {
     logoutMutation.mutate();

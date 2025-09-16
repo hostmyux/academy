@@ -17,6 +17,7 @@ import Billing from "@/pages/billing";
 import Reports from "@/pages/reports";
 import Settings from "@/pages/settings";
 import StudentPortal from "@/pages/student-portal";
+import SubAccounts from "@/pages/sub-accounts";
 
 function Router() {
   return (
@@ -31,6 +32,7 @@ function Router() {
       <ProtectedRoute path="/reports" component={Reports} />
       <ProtectedRoute path="/settings" component={Settings} />
       <ProtectedRoute path="/student-portal" component={StudentPortal} />
+      <ProtectedRoute path="/sub-accounts" component={SubAccounts} />
       <Route path="/auth" component={AuthPage} />
       <Route component={NotFound} />
     </Switch>

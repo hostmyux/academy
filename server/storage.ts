@@ -1,6 +1,6 @@
 import {
   tenants, subAccounts, users, leads, universities, programs, applications,
-  documents, payments, activities, pipelines,
+  documents, payments, activities, pipelines, tasks,
   type Tenant, type InsertTenant,
   type SubAccount, type InsertSubAccount,
   type User, type InsertUser,
@@ -12,6 +12,7 @@ import {
   type Payment, type InsertPayment,
   type Activity, type InsertActivity,
   type Pipeline, type InsertPipeline,
+  type Task, type InsertTask,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, like, ilike, sql, count } from "drizzle-orm";
@@ -20,6 +21,256 @@ import connectPg from "connect-pg-simple";
 import { pool } from "./db";
 
 const PostgresSessionStore = connectPg(session);
+
+// Mock storage for development when database is not available
+class MockStorage implements IStorage {
+  private mockData: any = {};
+  sessionStore: any;
+
+  constructor() {
+    // Create a simple in-memory session store that implements the required interface
+    this.sessionStore = {
+      get: (sid: string, callback: any) => callback(null, null),
+      set: (sid: string, session: any, callback: any) => callback(null),
+      destroy: (sid: string, callback: any) => callback(null),
+      on: (event: string, callback: any) => {
+        // Mock the event listener interface
+        console.log(`Session store event: ${event}`);
+      },
+      all: (callback: any) => callback(null, []),
+      length: (callback: any) => callback(null, 0),
+      clear: (callback: any) => callback(null),
+      touch: (sid: string, session: any, callback: any) => callback(null),
+    };
+    
+    // Initialize some mock data
+    this.mockData.users = [];
+    this.mockData.tenants = [];
+    this.mockData.leads = [];
+    this.mockData.applications = [];
+    this.mockData.activities = [];
+  }
+
+  async getUser(id: string): Promise<User | undefined> {
+    return this.mockData.users.find((u: any) => u.id === id);
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    return this.mockData.users.find((u: any) => u.email === email);
+  }
+
+  async createUser(user: InsertUser): Promise<User> {
+    const newUser = { ...user, id: `mock-${Date.now()}`, createdAt: new Date(), updatedAt: new Date() };
+    this.mockData.users.push(newUser);
+    return newUser;
+  }
+
+  async updateUser(id: string, updates: Partial<InsertUser>): Promise<User> {
+    const userIndex = this.mockData.users.findIndex((u: any) => u.id === id);
+    if (userIndex !== -1) {
+      this.mockData.users[userIndex] = { ...this.mockData.users[userIndex], ...updates, updatedAt: new Date() };
+      return this.mockData.users[userIndex];
+    }
+    throw new Error('User not found');
+  }
+
+  async createTenant(tenant: InsertTenant): Promise<Tenant> {
+    const newTenant = { ...tenant, id: `mock-${Date.now()}`, createdAt: new Date(), updatedAt: new Date() };
+    this.mockData.tenants.push(newTenant);
+    return newTenant;
+  }
+
+  async getTenant(id: string): Promise<Tenant | undefined> {
+    return this.mockData.tenants.find((t: any) => t.id === id);
+  }
+
+  async createLead(lead: InsertLead): Promise<Lead> {
+    const newLead = { ...lead, id: `mock-${Date.now()}`, createdAt: new Date(), updatedAt: new Date() };
+    this.mockData.leads.push(newLead);
+    return newLead;
+  }
+
+  async getLead(id: string): Promise<Lead | undefined> {
+    return this.mockData.leads.find((l: any) => l.id === id);
+  }
+
+  async getLeadsByTenant(tenantId: string, subAccountId?: string): Promise<Lead[]> {
+    return this.mockData.leads.filter((l: any) => l.tenantId === tenantId && (!subAccountId || l.subAccountId === subAccountId));
+  }
+
+  async createApplication(application: InsertApplication): Promise<Application> {
+    const newApplication = { ...application, id: `mock-${Date.now()}`, createdAt: new Date(), updatedAt: new Date() };
+    this.mockData.applications.push(newApplication);
+    return newApplication;
+  }
+
+  async getApplicationsByTenant(tenantId: string, subAccountId?: string): Promise<Application[]> {
+    return this.mockData.applications.filter((a: any) => a.tenantId === tenantId && (!subAccountId || a.subAccountId === subAccountId));
+  }
+
+  async createActivity(activity: InsertActivity): Promise<Activity> {
+    const newActivity = { ...activity, id: `mock-${Date.now()}`, createdAt: new Date() };
+    this.mockData.activities.push(newActivity);
+    return newActivity;
+  }
+
+  async getActivitiesByTenant(tenantId: string, subAccountId?: string, limit?: number): Promise<Activity[]> {
+    let activities = this.mockData.activities.filter((a: any) => a.tenantId === tenantId && (!subAccountId || a.subAccountId === subAccountId));
+    if (limit) {
+      activities = activities.slice(0, limit);
+    }
+    return activities;
+  }
+
+  async getLeadStats(tenantId: string, subAccountId?: string): Promise<any> {
+    return { total: 5, new: 2, contacted: 1, qualified: 1, converted: 1 };
+  }
+
+  async getApplicationStats(tenantId: string, subAccountId?: string): Promise<any> {
+    return { total: 3, draft: 1, submitted: 1, underReview: 1, accepted: 0, rejected: 0 };
+  }
+
+  async getRevenueStats(tenantId: string, subAccountId?: string): Promise<any> {
+    return { total: 5000, thisMonth: 2000, lastMonth: 1500, pending: 500 };
+  }
+
+  // Mock implementations for remaining methods
+  async updateTenant(id: string, updates: Partial<InsertTenant>): Promise<Tenant> {
+    throw new Error('Not implemented in mock storage');
+  }
+
+  async getSubAccount(id: string): Promise<SubAccount | undefined> {
+    throw new Error('Not implemented in mock storage');
+  }
+
+  async getSubAccountsByTenant(tenantId: string): Promise<SubAccount[]> {
+    return [];
+  }
+
+  async createSubAccount(subAccount: InsertSubAccount): Promise<SubAccount> {
+    throw new Error('Not implemented in mock storage');
+  }
+
+  async updateSubAccount(id: string, updates: Partial<InsertSubAccount>): Promise<SubAccount> {
+    throw new Error('Not implemented in mock storage');
+  }
+
+  async getUsersByTenant(tenantId: string): Promise<User[]> {
+    return this.mockData.users.filter((u: any) => u.tenantId === tenantId);
+  }
+
+  async getUsersBySubAccount(subAccountId: string): Promise<User[]> {
+    return [];
+  }
+
+  async updateUserStripeInfo(id: string, stripeCustomerId: string, stripeSubscriptionId?: string): Promise<User> {
+    throw new Error('Not implemented in mock storage');
+  }
+
+  async updateLead(id: string, updates: Partial<InsertLead>): Promise<Lead> {
+    throw new Error('Not implemented in mock storage');
+  }
+
+  async searchLeads(tenantId: string, query: string, subAccountId?: string): Promise<Lead[]> {
+    return [];
+  }
+
+  async getUniversity(id: string): Promise<University | undefined> {
+    throw new Error('Not implemented in mock storage');
+  }
+
+  async getUniversities(search?: string, country?: string): Promise<University[]> {
+    return [];
+  }
+
+  async createUniversity(university: InsertUniversity): Promise<University> {
+    throw new Error('Not implemented in mock storage');
+  }
+
+  async updateUniversity(id: string, updates: Partial<InsertUniversity>): Promise<University> {
+    throw new Error('Not implemented in mock storage');
+  }
+
+  async getProgram(id: string): Promise<Program | undefined> {
+    throw new Error('Not implemented in mock storage');
+  }
+
+  async getProgramsByUniversity(universityId: string): Promise<Program[]> {
+    return [];
+  }
+
+  async searchPrograms(query?: string, degreeType?: string, field?: string): Promise<Program[]> {
+    return [];
+  }
+
+  async createProgram(program: InsertProgram): Promise<Program> {
+    throw new Error('Not implemented in mock storage');
+  }
+
+  async updateProgram(id: string, updates: Partial<InsertProgram>): Promise<Program> {
+    throw new Error('Not implemented in mock storage');
+  }
+
+  async getApplication(id: string): Promise<Application | undefined> {
+    throw new Error('Not implemented in mock storage');
+  }
+
+  async getApplicationsByLead(leadId: string): Promise<Application[]> {
+    return [];
+  }
+
+  async updateApplication(id: string, updates: Partial<InsertApplication>): Promise<Application> {
+    throw new Error('Not implemented in mock storage');
+  }
+
+  async getDocument(id: string): Promise<Document | undefined> {
+    throw new Error('Not implemented in mock storage');
+  }
+
+  async getDocumentsByLead(leadId: string): Promise<Document[]> {
+    return [];
+  }
+
+  async getDocumentsByApplication(applicationId: string): Promise<Document[]> {
+    return [];
+  }
+
+  async createDocument(document: InsertDocument): Promise<Document> {
+    throw new Error('Not implemented in mock storage');
+  }
+
+  async updateDocument(id: string, updates: Partial<InsertDocument>): Promise<Document> {
+    throw new Error('Not implemented in mock storage');
+  }
+
+  async getPayment(id: string): Promise<Payment | undefined> {
+    throw new Error('Not implemented in mock storage');
+  }
+
+  async getPaymentsByTenant(tenantId: string, subAccountId?: string): Promise<Payment[]> {
+    return [];
+  }
+
+  async createPayment(payment: InsertPayment): Promise<Payment> {
+    throw new Error('Not implemented in mock storage');
+  }
+
+  async updatePayment(id: string, updates: Partial<InsertPayment>): Promise<Payment> {
+    throw new Error('Not implemented in mock storage');
+  }
+
+  async getPipelinesByTenant(tenantId: string, subAccountId?: string): Promise<Pipeline[]> {
+    return [];
+  }
+
+  async createPipeline(pipeline: InsertPipeline): Promise<Pipeline> {
+    throw new Error('Not implemented in mock storage');
+  }
+
+  async updatePipeline(id: string, updates: Partial<InsertPipeline>): Promise<Pipeline> {
+    throw new Error('Not implemented in mock storage');
+  }
+}
 
 export interface IStorage {
   // Session store
@@ -597,4 +848,19 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-export const storage = new DatabaseStorage();
+// Try to use DatabaseStorage, fall back to MockStorage if database is not available
+let storage: IStorage;
+try {
+  // Test if database is accessible
+  if (pool && typeof pool.query === 'function') {
+    storage = new DatabaseStorage();
+    console.log('Using DatabaseStorage');
+  } else {
+    throw new Error('Database pool not available');
+  }
+} catch (error) {
+  console.log('Database not available, using MockStorage for development');
+  storage = new MockStorage();
+}
+
+export { storage };
