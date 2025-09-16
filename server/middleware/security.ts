@@ -86,13 +86,13 @@ export class SecurityMiddleware {
       next();
     } catch (error) {
       console.error('Rate limiting error:', error);
-      next(); // Fail open   * Audit logging middleware
-   */
-
+      next(); // Fail open
     }
   }
 
   /**
+   * Audit logging middleware
+   */
   static async auditLog(req: Request, res: Response, next: NextFunction) {
     const originalSend = res.send;
     const startTime = Date.now();

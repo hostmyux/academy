@@ -26,8 +26,13 @@ export class TenantMiddleware {
    */
   static async extractTenantContext(req: Request, res: Response, next: NextFunction) {
     try {
-      // Skip tenant context for auth routes and public endpoints
-      if (req.path.startsWith('/api/auth') || req.path.startsWith('/api/public')) {
+      // Skip tenant context for auth routes, public endpoints, and client-side routes
+      if (req.path.startsWith('/api/auth') || 
+          req.path.startsWith('/api/public') ||
+          req.path.startsWith('/src/') ||
+          req.path === '/' ||
+          req.path.startsWith('/@') ||
+          req.path.includes('.')) {
         return next();
       }
 
@@ -44,12 +49,33 @@ export class TenantMiddleware {
         userRole: user.role,
       };
 
+      // Extract tenant from domain/subdomain
+      const host = req.headers.host || '';
+      const subdomain = this.extractSubdomain(host);
+      
+      if (subdomain) {
+        // Try to find tenant by domain/subdomain
+        const [tenantByDomain] = await db.select().from(tenants).where(
+          or(
+            eq(tenants.domain, subdomain),
+            eq(tenants.domain, host)
+          )
+        );
+        
+        if (tenantByDomain && tenantByDomain.id !== user.tenantId) {
+          return res.status(403).json({ message: 'Tenant domain mismatch' });
+        }
+      }
+
       // Load tenant details
       const [tenant] = await db.select().from(tenants).where(eq(tenants.id, user.tenantId));
       if (!tenant) {
         return res.status(404).json({ message: 'Tenant not found' });
       }
       tenantContext.tenant = tenant;
+
+      // Apply row-level security by injecting tenant context into query
+      this.injectTenantFilter(req, tenantContext);
 
       // Load sub-account if applicable
       if (user.subAccountId) {
@@ -67,6 +93,48 @@ export class TenantMiddleware {
     } catch (error) {
       console.error('Tenant middleware error:', error);
       res.status(500).json({ message: 'Internal server error' });
+    }
+  }
+
+  /**
+   * Extract subdomain from host
+   */
+  private static extractSubdomain(host: string): string | null {
+    if (!host) return null;
+    
+    // Remove port if present
+    const hostname = host.split(':')[0];
+    
+    // Skip localhost and IP addresses
+    if (hostname === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+      return null;
+    }
+    
+    const parts = hostname.split('.');
+    if (parts.length <= 2) return null; // No subdomain
+    
+    // Return the first part as subdomain
+    return parts[0];
+  }
+
+  /**
+   * Inject tenant filter into request for row-level security
+   */
+  private static injectTenantFilter(req: Request, tenantContext: TenantContext) {
+    // Add tenant filter to request body for database operations
+    if (req.body && typeof req.body === 'object') {
+      req.body.tenantId = tenantContext.tenantId;
+      if (tenantContext.subAccountId) {
+        req.body.subAccountId = tenantContext.subAccountId;
+      }
+    }
+    
+    // Add tenant filter to query parameters
+    if (req.query && typeof req.query === 'object') {
+      (req.query as any).tenantId = tenantContext.tenantId;
+      if (tenantContext.subAccountId) {
+        (req.query as any).subAccountId = tenantContext.subAccountId;
+      }
     }
   }
 

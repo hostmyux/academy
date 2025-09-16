@@ -1,0 +1,19 @@
+
+> rest-express@1.0.0 dev
+> NODE_ENV=development tsx server/index.ts
+
+Failed to initialize database: Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/z/my-project/server/db.ts:17:11)
+    at ModuleJob.run (node:internal/modules/esm/module_job:345:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:651:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+Using mock database for development...
+Database not available, using MockStorage for development
+[dotenv@17.2.2] injecting env (2) from .env -- tip: ⚙️  write to custom object with { processEnv: myObject }
+Session store event: disconnect
+Session store event: connect
+1:19:08 AM [express] serving on port 5000
+Browserslist: browsers data (caniuse-lite) is 11 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+1:19:53 AM [vite] hmr update /src/components/tenant-switcher.tsx, /src/index.css?v=E1dHdveWqlaCjZsMYz-33

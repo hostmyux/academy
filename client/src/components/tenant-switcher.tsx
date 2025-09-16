@@ -8,8 +8,9 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, Building2, Plus, Settings } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { ChevronDown, Building2, Plus, Settings, Loader2 } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "@/hooks/use-toast";
 
 interface Tenant {
   id: string;
@@ -18,6 +19,11 @@ interface Tenant {
   branding?: {
     logo?: string;
     colors?: { primary: string; secondary: string };
+    theme?: 'light' | 'dark';
+  };
+  settings?: {
+    allowSubAccounts: boolean;
+    maxSubAccounts: number;
   };
 }
 
@@ -26,79 +32,156 @@ interface SubAccount {
   name: string;
   tenantId: string;
   isActive: boolean;
+  branding?: {
+    logo?: string;
+    colors?: { primary: string; secondary: string };
+  };
 }
 
 // API functions
 const fetchTenants = async (): Promise<Tenant[]> => {
-  // Mock data - in production this would fetch from API
-  return [
-    {
-      id: "1",
-      name: "Global Education Partners",
-      domain: "globaledu.com",
-      branding: {
-        logo: "",
-        colors: { primary: "#3b82f6", secondary: "#1e40af" }
-      }
-    },
-    {
-      id: "2", 
-      name: "International Student Services",
-      domain: "intstudents.com",
-      branding: {
-        logo: "",
-        colors: { primary: "#10b981", secondary: "#047857" }
-      }
-    }
-  ];
+  const response = await fetch('/api/tenants');
+  if (!response.ok) throw new Error('Failed to fetch tenants');
+  return response.json();
 };
 
 const fetchSubAccounts = async (tenantId: string): Promise<SubAccount[]> => {
-  // Mock data - in production this would fetch from API
-  return [
-    { id: "1", name: "NYC Branch", tenantId: "1", isActive: true },
-    { id: "2", name: "LA Branch", tenantId: "1", isActive: true },
-    { id: "3", name: "Chicago Office", tenantId: "1", isActive: true },
-    { id: "4", name: "London Branch", tenantId: "2", isActive: true },
-    { id: "5", name: "Manchester Office", tenantId: "2", isActive: true }
-  ];
+  const response = await fetch(`/api/sub-accounts?tenantId=${tenantId}`);
+  if (!response.ok) throw new Error('Failed to fetch sub-accounts');
+  return response.json();
+};
+
+const switchTenant = async (tenantId: string, subAccountId?: string) => {
+  const response = await fetch('/api/auth/switch-tenant', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tenantId, subAccountId })
+  });
+  if (!response.ok) throw new Error('Failed to switch tenant');
+  return response.json();
 };
 
 export function TenantSwitcher() {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const [currentTenant, setCurrentTenant] = useState<Tenant | null>(null);
   const [currentSubAccount, setCurrentSubAccount] = useState<SubAccount | null>(null);
+  const [isSwitching, setIsSwitching] = useState(false);
+  const queryClient = useQueryClient();
   
-  const { data: tenants = [] } = useQuery({
+  const { data: tenants = [], isLoading: tenantsLoading } = useQuery({
     queryKey: ['tenants'],
-    queryFn: fetchTenants
+    queryFn: fetchTenants,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
-  const { data: subAccounts = [] } = useQuery({
+  const { data: subAccounts = [], isLoading: subAccountsLoading } = useQuery({
     queryKey: ['subAccounts', currentTenant?.id],
-    queryFn: () => currentTenant ? fetchSubAccounts(currentTenant.id) : Promise.resolve([])
+    queryFn: () => currentTenant ? fetchSubAccounts(currentTenant.id) : Promise.resolve([]),
+    enabled: !!currentTenant,
+    staleTime: 2 * 60 * 1000, // 2 minutes
   });
+
+  const switchTenantMutation = useMutation({
+    mutationFn: switchTenant,
+    onSuccess: (data) => {
+      updateUser(data.user);
+      toast({
+        title: "Switched successfully",
+        description: `Switched to ${currentTenant?.name}`,
+      });
+      // Invalidate relevant queries
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['applications'] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Switch failed",
+        description: "Failed to switch tenant. Please try again.",
+        variant: "destructive",
+      });
+    },
+    onSettled: () => {
+      setIsSwitching(false);
+    }
+  });
+
+  // Apply branding to the document
+  useEffect(() => {
+    if (currentTenant?.branding) {
+      const root = document.documentElement;
+      const branding = currentTenant.branding;
+      
+      if (branding.colors) {
+        root.style.setProperty('--tenant-primary', branding.colors.primary);
+        root.style.setProperty('--tenant-secondary', branding.colors.secondary);
+      }
+      
+      if (branding.theme) {
+        root.setAttribute('data-theme', branding.theme);
+      }
+      
+      // Apply favicon if available
+      if (branding.logo) {
+        const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+        if (link) link.href = branding.logo;
+      }
+    }
+  }, [currentTenant]);
 
   useEffect(() => {
-    // Initialize with first tenant and sub-account
-    if (tenants.length > 0 && !currentTenant) {
-      setCurrentTenant(tenants[0]);
+    // Initialize with user's current tenant and sub-account
+    if (user && tenants.length > 0) {
+      const userTenant = tenants.find(t => t.id === user.tenantId);
+      if (userTenant) {
+        setCurrentTenant(userTenant);
+      }
     }
-    
-    if (subAccounts.length > 0 && !currentSubAccount) {
+  }, [user, tenants]);
+
+  useEffect(() => {
+    // Set current sub-account
+    if (user?.subAccountId && subAccounts.length > 0) {
+      const userSubAccount = subAccounts.find(sa => sa.id === user.subAccountId);
+      if (userSubAccount) {
+        setCurrentSubAccount(userSubAccount);
+      }
+    } else if (subAccounts.length > 0 && !currentSubAccount) {
       setCurrentSubAccount(subAccounts[0]);
     }
-  }, [tenants, subAccounts, currentTenant, currentSubAccount]);
+  }, [subAccounts, user, currentSubAccount]);
 
-  const handleTenantChange = (tenant: Tenant) => {
+  const handleTenantChange = async (tenant: Tenant) => {
+    if (tenant.id === currentTenant?.id) return;
+    
+    setIsSwitching(true);
     setCurrentTenant(tenant);
     setCurrentSubAccount(null); // Reset sub-account when tenant changes
-    // In production, this would make an API call to switch tenant context
+    
+    try {
+      await switchTenantMutation.mutateAsync(tenant.id);
+    } catch (error) {
+      // Revert on error
+      if (currentTenant) {
+        setCurrentTenant(currentTenant);
+      }
+    }
   };
 
-  const handleSubAccountChange = (subAccount: SubAccount) => {
+  const handleSubAccountChange = async (subAccount: SubAccount) => {
+    if (subAccount.id === currentSubAccount?.id) return;
+    
+    setIsSwitching(true);
     setCurrentSubAccount(subAccount);
-    // In production, this would make an API call to switch sub-account context
+    
+    try {
+      await switchTenantMutation.mutateAsync(currentTenant!.id, subAccount.id);
+    } catch (error) {
+      // Revert on error
+      if (currentSubAccount) {
+        setCurrentSubAccount(currentSubAccount);
+      }
+    }
   };
 
   const getTenantInitials = (name: string) => {
@@ -110,10 +193,10 @@ export function TenantSwitcher() {
       .slice(0, 2);
   };
 
-  if (!currentTenant) {
+  if (tenantsLoading || !currentTenant) {
     return (
       <Button variant="outline" disabled>
-        <Building2 className="w-4 h-4 mr-2" />
+        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
         Loading...
       </Button>
     );
@@ -126,11 +209,20 @@ export function TenantSwitcher() {
           variant="outline" 
           className="w-full justify-between text-left bg-muted hover:bg-accent"
           data-testid="tenant-switcher"
+          disabled={isSwitching}
         >
           <div className="flex items-center space-x-2">
             <div className="w-8 h-8 rounded-md flex items-center justify-center text-white text-sm font-bold"
                  style={{ backgroundColor: currentTenant.branding?.colors?.primary || '#3b82f6' }}>
-              {getTenantInitials(currentTenant.name)}
+              {currentTenant.branding?.logo ? (
+                <img 
+                  src={currentTenant.branding.logo} 
+                  alt={currentTenant.name}
+                  className="w-6 h-6 rounded object-cover"
+                />
+              ) : (
+                getTenantInitials(currentTenant.name)
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-medium text-sm truncate">{currentTenant.name}</div>
@@ -138,8 +230,9 @@ export function TenantSwitcher() {
                 <div className="text-xs text-muted-foreground truncate">{currentSubAccount.name}</div>
               )}
             </div>
+            {isSwitching && <Loader2 className="w-4 h-4 animate-spin" />}
           </div>
-          <ChevronDown className="w-4 h-4" />
+          {!isSwitching && <ChevronDown className="w-4 h-4" />}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-80" align="start">
@@ -150,11 +243,20 @@ export function TenantSwitcher() {
             <DropdownMenuItem
               key={tenant.id}
               onClick={() => handleTenantChange(tenant)}
+              disabled={isSwitching}
               className={`flex items-center space-x-2 ${currentTenant.id === tenant.id ? 'bg-accent' : ''}`}
             >
               <div className="w-6 h-6 rounded flex items-center justify-center text-white text-xs font-bold"
                    style={{ backgroundColor: tenant.branding?.colors?.primary || '#3b82f6' }}>
-                {getTenantInitials(tenant.name)}
+                {tenant.branding?.logo ? (
+                  <img 
+                    src={tenant.branding.logo} 
+                    alt={tenant.name}
+                    className="w-4 h-4 rounded object-cover"
+                  />
+                ) : (
+                  getTenantInitials(tenant.name)
+                )}
               </div>
               <div className="flex-1">
                 <div className="text-sm font-medium">{tenant.name}</div>
@@ -174,10 +276,14 @@ export function TenantSwitcher() {
             <div className="p-2">
               <div className="flex items-center justify-between mb-2">
                 <div className="text-xs font-medium text-muted-foreground">Locations</div>
-                <Button variant="ghost" size="sm" className="h-6 text-xs">
-                  <Plus className="w-3 h-3 mr-1" />
-                  Add
-                </Button>
+                {subAccountsLoading ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Button variant="ghost" size="sm" className="h-6 text-xs">
+                    <Plus className="w-3 h-3 mr-1" />
+                    Add
+                  </Button>
+                )}
               </div>
               {subAccounts
                 .filter(sa => sa.tenantId === currentTenant.id)
@@ -185,6 +291,7 @@ export function TenantSwitcher() {
                 <DropdownMenuItem
                   key={subAccount.id}
                   onClick={() => handleSubAccountChange(subAccount)}
+                  disabled={isSwitching}
                   className={`flex items-center space-x-2 ${currentSubAccount?.id === subAccount.id ? 'bg-accent' : ''}`}
                 >
                   <Building2 className="w-4 h-4" />

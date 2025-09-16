@@ -12,20 +12,20 @@ const app = express();
 
 // Apply security middleware first
 app.use(SecurityMiddleware.securityHeaders);
-app.use(SecurityMiddleware.rateLimit);
+app.use(SecurityMiddleware.rateLimit.bind(SecurityMiddleware));
 
 // Body parsing middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 // Apply input validation and sanitization
-app.use(SecurityMiddleware.validateRequest);
+app.use(SecurityMiddleware.validateRequest.bind(SecurityMiddleware));
 
 // Apply tenant context extraction
 app.use(TenantMiddleware.extractTenantContext);
 
 // Apply audit logging
-app.use(SecurityMiddleware.auditLog);
+app.use(SecurityMiddleware.auditLog.bind(SecurityMiddleware));
 
 // Logging middleware
 app.use((req, res, next) => {

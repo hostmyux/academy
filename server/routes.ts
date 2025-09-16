@@ -13,6 +13,7 @@ import { stripeService } from "./services/stripeService";
 import { leadService } from "./services/leadService";
 import { TenantMiddleware } from "./middleware/tenant";
 import { SecurityMiddleware } from "./middleware/security";
+import { AuditMiddleware } from "./middleware/audit";
 import subAccountsRouter from "./routes/sub-accounts";
 import { insertUserSchema, insertLeadSchema, insertApplicationSchema } from "@shared/schema";
 
@@ -252,7 +253,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/leads/:id", requireAuth, TenantMiddleware.requireTenantContext, async (req, res) => {
+  app.put("/api/leads/:id", requireAuth, TenantMiddleware.requireTenantAccess, async (req, res) => {
     try {
       const lead = await storage.getLead(req.params.id);
       if (!lead) {
@@ -275,7 +276,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // AI endpoints
-  app.post("/api/ai/recommend-programs", requireAuth, TenantMiddleware.requireTenantContext, async (req, res) => {
+  app.post("/api/ai/recommend-programs", requireAuth, TenantMiddleware.requireTenantAccess, async (req, res) => {
     try {
       const { leadId } = req.body;
       
@@ -302,7 +303,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/ai/generate-email", requireAuth, TenantMiddleware.requireTenantContext, async (req, res) => {
+  app.post("/api/ai/generate-email", requireAuth, TenantMiddleware.requireTenantAccess, async (req, res) => {
     try {
       const { type, context } = req.body;
       const template = await aiService.generateEmailTemplate(type, context);
@@ -313,7 +314,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Universities and programs
-  app.get("/api/universities", requireAuth, TenantMiddleware.requireTenantContext, async (req, res) => {
+  app.get("/api/universities", requireAuth, TenantMiddleware.requireTenantAccess, async (req, res) => {
     try {
       const search = req.query.search as string;
       const country = req.query.country as string;
@@ -325,7 +326,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/programs", requireAuth, TenantMiddleware.requireTenantContext, async (req, res) => {
+  app.get("/api/programs", requireAuth, TenantMiddleware.requireTenantAccess, async (req, res) => {
     try {
       const query = req.query.search as string;
       const degreeType = req.query.degreeType as string;
@@ -349,7 +350,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Applications
-  app.get("/api/applications", requireAuth, TenantMiddleware.requireTenantContext, async (req, res) => {
+  app.get("/api/applications", requireAuth, TenantMiddleware.requireTenantAccess, async (req, res) => {
     try {
       const tenantContext = req.tenantContext!;
 
@@ -360,7 +361,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/applications", requireAuth, TenantMiddleware.requireTenantContext, async (req, res) => {
+  app.post("/api/applications", requireAuth, TenantMiddleware.requireTenantAccess, async (req, res) => {
     try {
       const tenantContext = req.tenantContext!;
       const applicationData = insertApplicationSchema.parse(req.body);
@@ -389,7 +390,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Stripe payment routes
-  app.post("/api/payments/create-intent", requireAuth, TenantMiddleware.requireTenantContext, async (req, res) => {
+  app.post("/api/payments/create-intent", requireAuth, TenantMiddleware.requireTenantAccess, async (req, res) => {
     try {
       const tenantContext = req.tenantContext!;
       const { amount, currency = "USD", leadId, applicationId } = req.body;
@@ -438,7 +439,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Reports and analytics
-  app.get("/api/reports/revenue", requireAuth, TenantMiddleware.requireTenantContext, async (req, res) => {
+  app.get("/api/reports/revenue", requireAuth, TenantMiddleware.requireTenantAccess, async (req, res) => {
     try {
       const tenantContext = req.tenantContext!;
 
@@ -450,7 +451,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Lead analytics
-  app.get("/api/leads/analytics", requireAuth, TenantMiddleware.requireTenantContext, async (req, res) => {
+  app.get("/api/leads/analytics", requireAuth, TenantMiddleware.requireTenantAccess, async (req, res) => {
     try {
       const tenantContext = req.tenantContext!;
       const analytics = await leadService.getLeadAnalytics(tenantContext.tenantId, tenantContext.subAccountId);
